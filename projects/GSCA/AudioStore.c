@@ -41,11 +41,16 @@ typedef struct gscaAudioStore
 static void gscaInitContainers (gscaAudioStore*, size_t);
 static void gscaResizeHandlesArray (gscaAudioStore*);
 static void gscaResizeDataBuffer (gscaAudioStore*, size_t);
-static bool gscaReadByte (FILE*, uint8_t*);
-static bool gscaReadWord (FILE*, uint16_t*);
-static bool gscaReadDoubleWord (FILE*, uint32_t*);
-static bool gscaReadQuadWord (FILE*, uint64_t*);
-static bool gscaReadString (FILE*, char*, size_t);
+static bool gscaReadByteFromBuffer (const uint8_t*, size_t, size_t*, uint8_t*);
+static bool gscaReadWordFromBuffer (const uint8_t*, size_t, size_t*, uint16_t*);
+static bool gscaReadDoubleWordFromBuffer (const uint8_t*, size_t, size_t*, uint32_t*);
+static bool gscaReadQuadWordFromBuffer (const uint8_t*, size_t, size_t*, uint64_t*);
+static bool gscaReadStringFromBuffer (const uint8_t*, size_t, size_t*, char*, size_t);
+static bool gscaReadByteFromFile (FILE*, uint8_t*);
+static bool gscaReadWordFromFile (FILE*, uint16_t*);
+static bool gscaReadDoubleWordFromFile (FILE*, uint32_t*);
+static bool gscaReadQuadWordFromFile (FILE*, uint64_t*);
+static bool gscaReadStringFromFile (FILE*, char*, size_t);
 static bool gscaWriteByte (FILE*, const uint8_t);
 static bool gscaWriteWord (FILE*, const uint16_t);
 static bool gscaWriteDoubleWord (FILE*, const uint32_t);
@@ -103,7 +108,88 @@ void gscaResizeDataBuffer (gscaAudioStore* audioStore, size_t extraSize)
     }
 }
 
-bool gscaReadByte (FILE* fp, uint8_t* value)
+bool gscaReadByteFromBuffer (const uint8_t* data, size_t size, size_t* offset, uint8_t* value)
+{
+    if (*offset + 1 > size)
+    {
+        gscaErr("Read position %zu is out of bounds.\n", *offset);
+        return false;
+    }
+
+    *value = data[(*offset)++];
+
+    return true;
+}
+
+bool gscaReadWordFromBuffer (const uint8_t* data, size_t size, size_t* offset, uint16_t* value)
+{
+    if (*offset + 2 > size)
+    {
+        gscaErr("Read position %zu is out of bounds.\n", *offset);
+        return false;
+    }
+
+    *value =
+        (((uint16_t) data[(*offset)++] <<  0)) |
+        (((uint16_t) data[(*offset)++] <<  8));
+
+    return true;
+}
+
+bool gscaReadDoubleWordFromBuffer (const uint8_t* data, size_t size, size_t* offset, uint32_t* value)
+{
+    if (*offset + 4 > size)
+    {
+        gscaErr("Read position %zu is out of bounds.\n", *offset);
+        return false;
+    }
+
+    *value =
+        (((uint32_t) data[(*offset)++] <<  0)) |
+        (((uint32_t) data[(*offset)++] <<  8)) |
+        (((uint32_t) data[(*offset)++] << 16)) |
+        (((uint32_t) data[(*offset)++] << 24));
+
+    return true;
+}
+
+bool gscaReadQuadWordFromBuffer (const uint8_t* data, size_t size, size_t* offset, uint64_t* value)
+{
+    if (*offset + 8 > size)
+    {
+        gscaErr("Read position %zu is out of bounds.\n", *offset);
+        return false;
+    }
+
+    *value =
+        (((uint64_t) data[(*offset)++] <<  0)) |
+        (((uint64_t) data[(*offset)++] <<  8)) |
+        (((uint64_t) data[(*offset)++] << 16)) |
+        (((uint64_t) data[(*offset)++] << 24)) |
+        (((uint64_t) data[(*offset)++] << 32)) |
+        (((uint64_t) data[(*offset)++] << 40)) |
+        (((uint64_t) data[(*offset)++] << 48)) |
+        (((uint64_t) data[(*offset)++] << 56));
+
+    return true;
+}
+
+bool gscaReadStringFromBuffer (const uint8_t* data, size_t size, size_t* offset, char* string, size_t length)
+{
+    if (*offset + length > size)
+    {
+        gscaErr("Read position %zu plus length %zu is out of bounds.\n", *offset, length);
+        return false;
+    }
+
+    memcpy(string, data + (*offset), length);
+    string[length] = '\0';
+    *offset += length;
+
+    return true;
+}
+
+bool gscaReadByteFromFile (FILE* fp, uint8_t* value)
 {
     fread(value, sizeof(uint8_t), 1, fp);
     if (feof(fp))
@@ -120,7 +206,7 @@ bool gscaReadByte (FILE* fp, uint8_t* value)
     return true;
 }
 
-bool gscaReadWord (FILE* fp, uint16_t* value)
+bool gscaReadWordFromFile (FILE* fp, uint16_t* value)
 {
     static uint8_t readWordBytes[2] = { 0 };
     fread(&readWordBytes, sizeof(uint8_t), 2, fp);
@@ -142,7 +228,7 @@ bool gscaReadWord (FILE* fp, uint16_t* value)
     return true;
 }
 
-bool gscaReadDoubleWord (FILE* fp, uint32_t* value)
+bool gscaReadDoubleWordFromFile (FILE* fp, uint32_t* value)
 {
     static uint8_t readDoubleWordBytes[4] = { 0 };
     fread(&readDoubleWordBytes, sizeof(uint8_t), 4, fp);
@@ -166,7 +252,7 @@ bool gscaReadDoubleWord (FILE* fp, uint32_t* value)
     return true;
 }
 
-bool gscaReadQuadWord (FILE* fp, uint64_t* value)
+bool gscaReadQuadWordFromFile (FILE* fp, uint64_t* value)
 {
     static uint8_t readQuadWordBytes[8] = { 0 };
     fread(&readQuadWordBytes, sizeof(uint8_t), 8, fp);
@@ -194,7 +280,7 @@ bool gscaReadQuadWord (FILE* fp, uint64_t* value)
     return true;
 }
 
-bool gscaReadString (FILE* fp, char* string, size_t length)
+bool gscaReadStringFromFile (FILE* fp, char* string, size_t length)
 {
     fread(string, sizeof(char), length, fp);
     if (feof(fp))
@@ -313,6 +399,83 @@ void gscaDestroyAudioStore (gscaAudioStore* audioStore)
     }
 }
 
+bool gscaReadAudioBuffer (gscaAudioStore* audioStore, const uint8_t* data, size_t size)
+{
+    gscaExpect(audioStore, "Pointer 'audioStore' is NULL!\n");
+    gscaExpect(data, "Pointer 'data' is NULL!\n");
+
+    if (size == 0)
+    {
+        gscaErr("Buffer size cannot be zero.\n");
+        return false;
+    }
+    
+    // Keep track of an offset.
+    size_t offset = 0;
+
+    // Read header.
+    gscaAudioFileHeader header;
+    if (
+        gscaReadDoubleWordFromBuffer(data, size, &offset, &header.magicNumber) == false ||
+        gscaReadByteFromBuffer(data, size, &offset, &header.majorVersion) == false ||
+        gscaReadByteFromBuffer(data, size, &offset, &header.minorVersion) == false ||
+        gscaReadWordFromBuffer(data, size, &offset, &header.audioCount) == false
+    )
+    {
+        gscaErr("Could not read header from buffer.\n");
+        return false;
+    }
+
+    // Validate header.
+    if (header.magicNumber != GSCA_AS_MAGIC_NUMBER)
+    {
+        gscaErr("Provided buffer has incorrect magic number (0x%08X).\n",
+            header.magicNumber);
+        return false;
+    }
+    else if (header.majorVersion != GSCA_MAJOR_VERSION)
+    {
+        gscaErr("Provided buffer has incorrect major version.\n");
+        return false;
+    }
+    else if (header.minorVersion > GSCA_MINOR_VERSION)
+    {
+        gscaErr("Provided buffer has incorrect minor version.\n");
+        return false;
+    }
+
+    // Load audio handles.
+    size_t dataSize = size - sizeof(header);
+    for (uint16_t i = 0; i < header.audioCount; ++i)
+    {
+        gscaResizeHandlesArray(audioStore);
+        gscaAudioHandle* handle = &audioStore->handles[audioStore->handlesSize++];
+        if (
+            gscaReadStringFromBuffer(data, size, &offset, handle->name, GSCA_AS_HANDLE_NAME_STRLEN) == false ||
+            gscaReadQuadWordFromBuffer(data, size, &offset, &handle->offset) == false
+        )
+        {
+            gscaErr("Could not read audio entry #%u from provided buffer.", i);
+            return false;
+        }
+
+        handle->offset += audioStore->dataSize;
+        handle->id = gscaNextId++;
+        dataSize -= (sizeof(handle->name) + sizeof(handle->offset));
+    }
+
+    // Load audio data.
+    gscaResizeDataBuffer(audioStore, dataSize);
+    memcpy(
+        audioStore->data + audioStore->dataSize,
+        data + offset,
+        dataSize
+    );
+
+    audioStore->dataSize += dataSize;
+    return true;
+}
+
 bool gscaReadAudioFile (gscaAudioStore* audioStore, const char* filename)
 {
     gscaExpect(audioStore, "Pointer 'audioStore' is NULL!\n");
@@ -349,10 +512,10 @@ bool gscaReadAudioFile (gscaAudioStore* audioStore, const char* filename)
     // Read header.
     gscaAudioFileHeader header;
     if (
-        gscaReadDoubleWord(fp, &header.magicNumber) == false ||
-        gscaReadByte(fp, &header.majorVersion) == false ||
-        gscaReadByte(fp, &header.minorVersion) == false ||
-        gscaReadWord(fp, &header.audioCount) == false
+        gscaReadDoubleWordFromFile(fp, &header.magicNumber) == false ||
+        gscaReadByteFromFile(fp, &header.majorVersion) == false ||
+        gscaReadByteFromFile(fp, &header.minorVersion) == false ||
+        gscaReadWordFromFile(fp, &header.audioCount) == false
     )
     {
         gscaErr("Could not read header from file '%s'.\n", filename);
@@ -385,8 +548,8 @@ bool gscaReadAudioFile (gscaAudioStore* audioStore, const char* filename)
         gscaResizeHandlesArray(audioStore);
         gscaAudioHandle* handle = &audioStore->handles[audioStore->handlesSize++];
         if (
-            gscaReadString(fp, handle->name, GSCA_AS_HANDLE_NAME_STRLEN) == false ||
-            gscaReadQuadWord(fp, &handle->offset) == false
+            gscaReadStringFromFile(fp, handle->name, GSCA_AS_HANDLE_NAME_STRLEN) == false ||
+            gscaReadQuadWordFromFile(fp, &handle->offset) == false
         )
         {
             gscaErr("Could not read audio entry #%u from file '%s'.", i, filename);

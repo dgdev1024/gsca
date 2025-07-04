@@ -1,5 +1,4 @@
 #!/bin/bash
 
-rm -rf build/ assets/ logs/
+rm -rf build/ 
 rm -f Makefile
-rm -f Ace.sln

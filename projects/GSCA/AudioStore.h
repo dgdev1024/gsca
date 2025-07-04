@@ -22,6 +22,7 @@ typedef struct gscaAudioHandle
 
 GSCA_API gscaAudioStore* gscaCreateAudioStore (size_t initialCapacity);
 GSCA_API void gscaDestroyAudioStore (gscaAudioStore* audioStore);
+GSCA_API bool gscaReadAudioBuffer (gscaAudioStore* audioStore, const uint8_t* data, size_t size);
 GSCA_API bool gscaReadAudioFile (gscaAudioStore* audioStore, const char* filename);
 GSCA_API bool gscaWriteAudioFile (const gscaAudioStore* audioStore, const char* filename);
 GSCA_API const gscaAudioHandle* gscaGetHandleByIndex (const gscaAudioStore* audioStore, size_t index);

@@ -68,10 +68,6 @@ workspace "GSCA"
             pic             "On"
         filter {}
 
-        postbuildcommands {
-            "../../build/bin/%{cfg.buildcfg}/gscab ../../audio ../../build/audio.gsca"
-        }
-
     project "gscap"
         kind        "ConsoleApp"
         location    "./build/GSCAP"
